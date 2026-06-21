@@ -1,0 +1,27 @@
+{
+  "enabledPlugins": {
+    "claude-md-management@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(flutter *)",
+      "Bash(dart *)",
+      "Bash(pub *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | grep -E '\\.dart$' | { read -r f; [ -n \"$f\" ] && flutter analyze \"$f\" 2>/dev/null || true; }",
+            "timeout": 30,
+            "statusMessage": "Analyzing Dart file..."
+          }
+        ]
+      }
+    ]
+  }
+}

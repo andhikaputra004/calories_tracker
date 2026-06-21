@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx skills *)",
+      "Skill(update-config)",
+      "Bash(grep -E '\\\\.dart$')",
+      "Bash(flutter create *)",
+      "PowerShell(Get-ChildItem -Path \"D:\\\\Research\\\\calories_tracker\\\\lib\" -Recurse -Directory | Select-Object FullName | ForEach-Object { $_.FullName.Replace\\(\"D:\\\\Research\\\\calories_tracker\\\\lib\\\\\", \"\"\\) })",
+      "Bash(del /Q \"lib\\\\features\\\\dashboard\\\\presentation\\\\screens\\\\dashboard_screen.dart\" \"lib\\\\features\\\\dashboard\\\\presentation\\\\screens\\\\dashboard_screen_preview.dart\" \"lib\\\\features\\\\dashboard\\\\presentation\\\\widgets\\\\meal_section.dart\" \"lib\\\\features\\\\dashboard\\\\presentation\\\\widgets\\\\meal_summary_card.dart\" \"lib\\\\features\\\\dashboard\\\\presentation\\\\widgets\\\\water_tracker_widget.dart\" \"lib\\\\features\\\\dashboard\\\\presentation\\\\widgets\\\\calorie_summary_card.dart\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git checkout *)"
+    ]
+  }
+}
