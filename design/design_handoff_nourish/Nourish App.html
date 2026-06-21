@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nourish — Calorie Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; background: #1a1a18; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; font-family: 'DM Sans', sans-serif; }
+  #root { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+
+  @keyframes ringFill {
+    from { stroke-dashoffset: 753; }
+    to { stroke-dashoffset: var(--target-offset); }
+  }
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateX(30px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.92); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  @keyframes barGrow {
+    from { width: 0; }
+    to { width: var(--bar-width); }
+  }
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-40px); }
+  }
+  @keyframes checkPop {
+    0% { transform: scale(0); opacity: 0; }
+    60% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes bounceDot {
+    0%, 80%, 100% { transform: scale(0.8); opacity: 0.4; }
+    40% { transform: scale(1.2); opacity: 1; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ─── Design Tokens ───────────────────────────────────────────
+const T = {
+  bg: '#F7F4EE',
+  bgCard: '#FFFFFF',
+  bgMuted: '#F0EDE6',
+  surface: '#EAE6DD',
+  border: 'rgba(0,0,0,0.07)',
+  text: '#1C1A16',
+  textSec: '#6B6560',
+  textMuted: '#A09890',
+  green: '#4A7C59',
+  greenLight: '#EBF3EE',
+  greenDark: '#2F5238',
+  yellow: '#D4A843',
+  yellowLight: '#FDF6E3',
+  red: '#C45C4A',
+  redLight: '#FDEEED',
+  accent: '#4A7C59',
+  ring1: '#4A7C59',  // protein
+  ring2: '#D4A843',  // carbs
+  ring3: '#C45C4A',  // fat
+};
+
+// ─── Mock Data ───────────────────────────────────────────────
+const FOODS_DB = [
+  { id:1, name:'Nasi Putih', cal:130, p:2.7, c:28, f:0.3, serving:'100g', emoji:'🍚', category:'Karbohidrat' },
+  { id:2, name:'Ayam Bakar', cal:215, p:30, c:0, f:10, serving:'100g', emoji:'🍗', category:'Protein' },
+  { id:3, name:'Tempe Goreng', cal:193, p:14, c:12, f:10, serving:'100g', emoji:'🟫', category:'Protein' },
+  { id:4, name:'Sayur Bayam', cal:23, p:2.9, c:3.6, f:0.4, serving:'100g', emoji:'🥬', category:'Sayuran' },
+  { id:5, name:'Pisang', cal:89, p:1.1, c:23, f:0.3, serving:'1 buah', emoji:'🍌', category:'Buah' },
+  { id:6, name:'Tahu Goreng', cal:70, p:8, c:2, f:4, serving:'100g', emoji:'🟨', category:'Protein' },
+  { id:7, name:'Mie Goreng', cal:337, p:7, c:50, f:12, serving:'1 porsi', emoji:'🍜', category:'Karbohidrat' },
+  { id:8, name:'Alpukat', cal:160, p:2, c:9, f:15, serving:'100g', emoji:'🥑', category:'Buah' },
+  { id:9, name:'Telur Rebus', cal:78, p:6, c:0.6, f:5, serving:'1 butir', emoji:'🥚', category:'Protein' },
+  { id:10, name:'Susu Full Cream', cal:149, p:8, c:12, f:8, serving:'250ml', emoji:'🥛', category:'Minuman' },
+];
+
+const MEAL_TIMES = ['Sarapan', 'Makan Siang', 'Makan Malam', 'Camilan'];
+
+const INITIAL_LOGS = {
+  'Sarapan': [
+    { ...FOODS_DB[0], qty: 1.5, totalCal: 195 },
+    { ...FOODS_DB[8], qty: 2, totalCal: 156 },
+  ],
+  'Makan Siang': [
+    { ...FOODS_DB[1], qty: 1, totalCal: 215 },
+    { ...FOODS_DB[0], qty: 1, totalCal: 130 },
+    { ...FOODS_DB[3], qty: 1, totalCal: 23 },
+  ],
+  'Makan Malam': [],
+  'Camilan': [
+    { ...FOODS_DB[4], qty: 1, totalCal: 89 },
+  ],
+};
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "goalCalories": 2000,
+  "userName": "Rina",
+  "accentColor": "#4A7C59",
+  "theme": "warm"
+}/*EDITMODE-END*/;
+
+// ─── Helper Components ────────────────────────────────────────
+
+function AnimatedRing({ size = 240, strokeWidth = 16, progress = 0.7, color = T.green, bgColor = '#E8E3D8', delay = 0, children }) {
+  const r = (size - strokeWidth) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - progress);
+  const [animated, setAnimated] = useState(false);
+  const [displayOffset, setDisplayOffset] = useState(circ);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setAnimated(true);
+      setDisplayOffset(offset);
+    }, delay);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (animated) setDisplayOffset(offset);
+  }, [progress, animated]);
+
+  return (
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={bgColor} strokeWidth={strokeWidth} />
+        <circle
+          cx={size/2} cy={size/2} r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={displayOffset}
+          style={{ transition: animated ? 'stroke-dashoffset 1.2s cubic-bezier(0.34,1.56,0.64,1)' : 'none' }}
+        />
+      </svg>
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+      }}>{children}</div>
+    </div>
+  );
+}
+
+function MacroBar({ label, current, goal, color, delay = 0 }) {
+  const pct = Math.min(current / goal, 1);
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => setW(pct * 100), delay);
+    return () => clearTimeout(t);
+  }, []);
+  useEffect(() => { setW(pct * 100); }, [pct]);
+
+  return (
+    <div style={{ flex: 1 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: T.textSec, letterSpacing: 0.3, textTransform: 'uppercase' }}>{label}</span>
+        <span style={{ fontSize: 11, color: T.textMuted }}>{current}g</span>
+      </div>
+      <div style={{ height: 6, background: T.surface, borderRadius: 99, overflow: 'hidden' }}>
+        <div style={{
+          height: '100%', background: color, borderRadius: 99,
+          width: `${w}%`,
+          transition: 'width 1s cubic-bezier(0.34,1.56,0.64,1)',
+        }} />
+      </div>
+      <div style={{ fontSize: 10, color: T.textMuted, marginTop: 3 }}>Goal {goal}g</div>
+    </div>
+  );
+}
+
+function NourishLogo({ size = 28, color = T.green }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 28 28" fill="none">
+      <circle cx="14" cy="14" r="13" fill={color} opacity="0.12" />
+      <path d="M14 6c0 0-6 4-6 9a6 6 0 0012 0c0-5-6-9-6-9z" fill={color} opacity="0.7"/>
+      <path d="M14 10c0 0-3 2.5-3 5.5a3 3 0 006 0c0-3-3-5.5-3-5.5z" fill={color}/>
+      <path d="M14 8v12" stroke="white" strokeWidth="1.2" strokeLinecap="round" opacity="0.5"/>
+    </svg>
+  );
+}
+
+function TabBar({ active, onTab }) {
+  const tabs = [
+    { id: 'home', label: 'Beranda', icon: (a) => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path d="M3 9.5L11 2l8 7.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" stroke={a ? T.green : T.textMuted} strokeWidth="1.8" fill={a ? T.greenLight : 'none'} strokeLinejoin="round"/>
+        <rect x="8" y="13" width="6" height="8" rx="1" stroke={a ? T.green : T.textMuted} strokeWidth="1.8"/>
+      </svg>
+    )},
+    { id: 'log', label: 'Log', icon: (a) => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <circle cx="11" cy="11" r="9" stroke={a ? T.green : T.textMuted} strokeWidth="1.8" fill={a ? T.greenLight : 'none'}/>
+        <path d="M11 7v4l3 3" stroke={a ? T.green : T.textMuted} strokeWidth="1.8" strokeLinecap="round"/>
+      </svg>
+    )},
+    { id: 'add', label: '', icon: () => null },
+    { id: 'stats', label: 'Statistik', icon: (a) => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <rect x="2" y="12" width="4" height="8" rx="1" fill={a ? T.green : T.textMuted}/>
+        <rect x="9" y="7" width="4" height="13" rx="1" fill={a ? T.green : T.textMuted} opacity={a ? 1 : 0.6}/>
+        <rect x="16" y="3" width="4" height="17" rx="1" fill={a ? T.green : T.textMuted} opacity={a ? 1 : 0.4}/>
+      </svg>
+    )},
+    { id: 'profile', label: 'Profil', icon: (a) => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <circle cx="11" cy="8" r="4" stroke={a ? T.green : T.textMuted} strokeWidth="1.8" fill={a ? T.greenLight : 'none'}/>
+        <path d="M3 19c0-4 3.6-7 8-7s8 3 8 7" stroke={a ? T.green : T.textMuted} strokeWidth="1.8" strokeLinecap="round"/>
+      </svg>
+    )},
+  ];
+
+  return (
+    <div style={{
+      position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 50,
+      background: 'rgba(247,244,238,0.95)',
+      backdropFilter: 'blur(20px)',
+      borderTop: `1px solid ${T.border}`,
+      paddingBottom: 28, paddingTop: 8,
+      display: 'flex', alignItems: 'center',
+    }}>
+      {tabs.map((tab) => {
+        if (tab.id === 'add') {
+          return (
+            <div key="add" style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+              <button onClick={() => onTab('add')} style={{
+                width: 52, height: 52, borderRadius: 26,
+                background: `linear-gradient(135deg, ${T.green}, ${T.greenDark})`,
+                border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: `0 6px 20px ${T.green}55`,
+                transform: active === 'add' ? 'scale(0.95)' : 'scale(1)',
+                transition: 'transform 0.15s',
+                marginTop: -20,
+              }}>
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                  <path d="M11 4v14M4 11h14" stroke="#fff" strokeWidth="2.4" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+          );
+        }
+        const isActive = active === tab.id;
+        return (
+          <button key={tab.id} onClick={() => onTab(tab.id)} style={{
+            flex: 1, background: 'none', border: 'none', cursor: 'pointer',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+            padding: '4px 0',
+          }}>
+            {tab.icon(isActive)}
+            {tab.label && (
+              <span style={{
+                fontSize: 10, fontWeight: isActive ? 600 : 400,
+                color: isActive ? T.green : T.textMuted,
+                fontFamily: 'DM Sans, sans-serif',
+              }}>{tab.label}</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── SCREENS ─────────────────────────────────────────────────
+
+// Onboarding
+function OnboardingScreen({ onDone, tweaks }) {
+  const [step, setStep] = useState(0);
+  const [data, setData] = useState({ name: '', weight: '', height: '', goal: 'Turun Berat Badan', actLevel: 'Sedang' });
+  const [animating, setAnimating] = useState(false);
+
+  const goals = ['Turun Berat Badan', 'Jaga Berat Badan', 'Tambah Massa Otot'];
+  const activities = ['Santai', 'Ringan', 'Sedang', 'Aktif', 'Sangat Aktif'];
+
+  const nextStep = () => {
+    setAnimating(true);
+    setTimeout(() => { setStep(s => s + 1); setAnimating(false); }, 200);
+  };
+
+  const screens = [
+    // Step 0: Welcome
+    <div key="s0" style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 28px', gap: 24, animation: 'scaleIn 0.5s ease' }}>
+      <div style={{ animation: 'pulse 3s ease infinite' }}>
+        <NourishLogo size={72} color={tweaks.accentColor} />
+      </div>
+      <div style={{ textAlign: 'center', gap: 12, display: 'flex', flexDirection: 'column' }}>
+        <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 42, color: T.text, lineHeight: 1.1 }}>Nourish</h1>
+        <p style={{ fontSize: 16, color: T.textSec, lineHeight: 1.6, fontWeight: 400 }}>Lacak nutrisi harianmu,{'\n'}raih tujuan kesehatanmu</p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', marginTop: 16 }}>
+        <button onClick={nextStep} style={{
+          background: tweaks.accentColor, color: '#fff', border: 'none', borderRadius: 16,
+          padding: '16px', fontSize: 16, fontWeight: 600, cursor: 'pointer',
+          fontFamily: 'DM Sans, sans-serif',
+          boxShadow: `0 8px 24px ${tweaks.accentColor}44`,
+        }}>Mulai Sekarang</button>
+        <button onClick={onDone} style={{
+          background: 'none', color: T.textSec, border: 'none',
+          padding: '12px', fontSize: 14, cursor: 'pointer',
+          fontFamily: 'DM Sans, sans-serif',
+        }}>Sudah punya akun? Masuk</button>
+      </div>
+    </div>,
+
+    // Step 1: Name
+    <div key="s1" style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '80px 28px 40px', gap: 32, animation: 'fadeSlideIn 0.35s ease' }}>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: tweaks.accentColor, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Langkah 1 dari 3</div>
+        <div style={{ height: 4, background: T.surface, borderRadius: 99, overflow: 'hidden', marginBottom: 24 }}>
+          <div style={{ width: '33%', height: '100%', background: tweaks.accentColor, borderRadius: 99, transition: 'width 0.5s ease' }} />
+        </div>
+        <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 32, color: T.text, lineHeight: 1.2 }}>Hai! Siapa namamu?</h2>
+        <p style={{ fontSize: 15, color: T.textSec, marginTop: 8 }}>Kami ingin menyapamu dengan benar</p>
+      </div>
+      <input
+        value={data.name}
+        onChange={e => setData({ ...data, name: e.target.value })}
+        placeholder="Nama panggilanmu..."
+        style={{
+          border: `2px solid ${data.name ? tweaks.accentColor : T.border}`,
+          borderRadius: 14, padding: '16px 20px',
+          fontSize: 20, fontFamily: 'DM Serif Display, serif',
+          color: T.text, background: T.bgCard, outline: 'none',
+          transition: 'border-color 0.2s',
+        }}
+      />
+      <div style={{ marginTop: 'auto' }}>
+        <button onClick={nextStep} disabled={!data.name} style={{
+          width: '100%', background: data.name ? tweaks.accentColor : T.surface,
+          color: data.name ? '#fff' : T.textMuted, border: 'none', borderRadius: 16,
+          padding: '16px', fontSize: 16, fontWeight: 600, cursor: data.name ? 'pointer' : 'default',
+          fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s',
+        }}>Lanjut →</button>
+      </div>
+    </div>,
+
+    // Step 2: Body stats
+    <div key="s2" style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '80px 28px 40px', gap: 24, animation: 'fadeSlideIn 0.35s ease' }}>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: tweaks.accentColor, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Langkah 2 dari 3</div>
+        <div style={{ height: 4, background: T.surface, borderRadius: 99, overflow: 'hidden', marginBottom: 24 }}>
+          <div style={{ width: '66%', height: '100%', background: tweaks.accentColor, borderRadius: 99 }} />
+        </div>
+        <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 32, color: T.text, lineHeight: 1.2 }}>Data tubuhmu</h2>
+        <p style={{ fontSize: 15, color: T.textSec, marginTop: 8 }}>Untuk kalkulasi kalori yang akurat</p>
+      </div>
+      <div style={{ display: 'flex', gap: 12 }}>
+        {[{ label: 'Berat (kg)', key: 'weight', ph: '65' }, { label: 'Tinggi (cm)', key: 'height', ph: '165' }].map(f => (
+          <div key={f.key} style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.textSec, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>{f.label}</div>
+            <input
+              type="number" value={data[f.key]}
+              onChange={e => setData({ ...data, [f.key]: e.target.value })}
+              placeholder={f.ph}
+              style={{
+                width: '100%', border: `2px solid ${data[f.key] ? tweaks.accentColor : T.border}`,
+                borderRadius: 14, padding: '14px 16px',
+                fontSize: 24, fontFamily: 'DM Serif Display, serif',
+                color: T.text, background: T.bgCard, outline: 'none',
+                transition: 'border-color 0.2s',
+              }}
+            />
+          </div>
+        ))}
+      </div>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.textSec, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>Tujuan Utama</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {goals.map(g => (
+            <button key={g} onClick={() => setData({ ...data, goal: g })} style={{
+              background: data.goal === g ? T.greenLight : T.bgCard,
+              border: `2px solid ${data.goal === g ? tweaks.accentColor : T.border}`,
+              borderRadius: 12, padding: '14px 16px',
+              display: 'flex', alignItems: 'center', gap: 12,
+              cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left',
+            }}>
+              <div style={{
+                width: 20, height: 20, borderRadius: 10,
+                border: `2px solid ${data.goal === g ? tweaks.accentColor : T.border}`,
+                background: data.goal === g ? tweaks.accentColor : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                {data.goal === g && <div style={{ width: 8, height: 8, borderRadius: 4, background: '#fff' }} />}
+              </div>
+              <span style={{ fontSize: 15, fontWeight: 500, color: T.text, fontFamily: 'DM Sans, sans-serif' }}>{g}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{ marginTop: 'auto' }}>
+        <button onClick={nextStep} style={{
+          width: '100%', background: tweaks.accentColor,
+          color: '#fff', border: 'none', borderRadius: 16,
+          padding: '16px', fontSize: 16, fontWeight: 600, cursor: 'pointer',
+          fontFamily: 'DM Sans, sans-serif',
+        }}>Lanjut →</button>
+      </div>
+    </div>,
+
+    // Step 3: Done
+    <div key="s3" style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 28px', gap: 24, animation: 'scaleIn 0.5s ease' }}>
+      <div style={{ width: 88, height: 88, borderRadius: 44, background: T.greenLight, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'checkPop 0.5s ease' }}>
+        <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+          <path d="M10 22l9 9 15-16" stroke={tweaks.accentColor} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+      <div style={{ textAlign: 'center', gap: 10, display: 'flex', flexDirection: 'column' }}>
+        <h2 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 34, color: T.text }}>Selamat, {data.name || 'Kamu'}!</h2>
+        <p style={{ fontSize: 15, color: T.textSec, lineHeight: 1.6 }}>Target harian kamu sudah dikonfigurasi.{'\n'}Saatnya mulai perjalananmu 🌱</p>
+      </div>
+      <div style={{ background: T.greenLight, borderRadius: 16, padding: '20px', width: '100%', display: 'flex', justifyContent: 'space-around' }}>
+        {[['2000', 'Kalori'], ['150g', 'Karbo'], ['120g', 'Protein'], ['55g', 'Lemak']].map(([v, l]) => (
+          <div key={l} style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 22, fontFamily: 'DM Serif Display, serif', color: tweaks.accentColor, fontWeight: 700 }}>{v}</div>
+            <div style={{ fontSize: 11, color: T.textSec, marginTop: 2 }}>{l}</div>
+          </div>
+        ))}
+      </div>
+      <button onClick={onDone} style={{
+        width: '100%', background: tweaks.accentColor, color: '#fff',
+        border: 'none', borderRadius: 16, padding: '16px',
+        fontSize: 16, fontWeight: 600, cursor: 'pointer',
+        fontFamily: 'DM Sans, sans-serif',
+        boxShadow: `0 8px 24px ${tweaks.accentColor}44`,
+        marginTop: 8,
+      }}>Mulai Nourish!</button>
+    </div>,
+  ];
+
+  return (
+    <div style={{ height: '100%', background: T.bg, overflow: 'hidden' }}>
+      <IOSStatusBar dark={false} time="9:41" />
+      <div style={{ height: 'calc(100% - 61px)', opacity: animating ? 0 : 1, transition: 'opacity 0.15s' }}>
+        {screens[step]}
+      </div>
+    </div>
+  );
+}
+
+// Home / Dashboard
+function HomeScreen({ logs, onTab, tweaks }) {
+  const totalCal = Object.values(logs).flat().reduce((s, f) => s + f.totalCal, 0);
+  const goal = tweaks.goalCalories;
+  const remaining = goal - totalCal;
+  const progress = Math.min(totalCal / goal, 1);
+
+  const totalP = Object.values(logs).flat().reduce((s, f) => s + f.p * f.qty, 0);
+  const totalC = Object.values(logs).flat().reduce((s, f) => s + f.c * f.qty, 0);
+  const totalF = Object.values(logs).flat().reduce((s, f) => s + f.f * f.qty, 0);
+
+  const mealSummary = MEAL_TIMES.map(m => ({
+    name: m,
+    cal: (logs[m] || []).reduce((s, f) => s + f.totalCal, 0),
+    count: (logs[m] || []).length,
+  }));
+
+  const mealIcons = { 'Sarapan': '🌅', 'Makan Siang': '☀️', 'Makan Malam': '🌙', 'Camilan': '🍎' };
+
+  return (
+    <div style={{ height: '100%', background: T.bg, overflowY: 'auto', paddingBottom: 100 }}>
+      <IOSStatusBar dark={false} time="9:41" />
+      {/* Header */}
+      <div style={{ padding: '12px 24px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 13, color: T.textSec, fontWeight: 400 }}>Rabu, 7 Mei 2026</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: T.text, fontFamily: 'DM Sans, sans-serif' }}>
+            Halo, {tweaks.userName} 👋
+          </div>
+        </div>
+        <div style={{ width: 40, height: 40, borderRadius: 20, background: `linear-gradient(135deg, ${tweaks.accentColor}, ${T.greenDark})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: 18 }}>R</span>
+        </div>
+      </div>
+
+      {/* Main Ring Card */}
+      <div style={{ margin: '16px 16px 0', background: T.bgCard, borderRadius: 24, padding: '24px', boxShadow: '0 2px 16px rgba(0,0,0,0.06)', animation: 'fadeSlideUp 0.5s ease' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.textSec, textTransform: 'uppercase', letterSpacing: 0.8 }}>Kalori Hari Ini</div>
+            <div style={{ fontFamily: 'DM Serif Display, serif', fontSize: 40, color: T.text, lineHeight: 1.1 }}>
+              {totalCal.toLocaleString()}
+            </div>
+            <div style={{ fontSize: 14, color: T.textSec }}>dari {goal.toLocaleString()} kkal</div>
+          </div>
+          <AnimatedRing size={100} strokeWidth={10} progress={progress} color={tweaks.accentColor} bgColor={T.surface} delay={300}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontFamily: 'DM Serif Display, serif', fontSize: 18, color: T.text, fontWeight: 700 }}>{Math.round(progress * 100)}%</div>
+            </div>
+          </AnimatedRing>
+        </div>
+
+        {/* Remaining callout */}
+        <div style={{
+          background: remaining > 0 ? T.greenLight : T.redLight,
+          borderRadius: 12, padding: '10px 14px',
+          display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20,
+        }}>
+          <div style={{ width: 32, height: 32, borderRadius: 16, background: remaining > 0 ? tweaks.accentColor : T.red, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              {remaining > 0
+                ? <path d="M8 3v10M3 8h10" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+                : <path d="M4 4l8 8M12 4l-8 8" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+              }
+            </svg>
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: remaining > 0 ? T.greenDark : T.red }}>
+              {remaining > 0 ? `${remaining} kkal tersisa` : `${Math.abs(remaining)} kkal melebihi target`}
+            </div>
+            <div style={{ fontSize: 12, color: T.textSec }}>Target: {goal.toLocaleString()} kkal</div>
+          </div>
+        </div>
+
+        {/* Macros */}
+        <div style={{ display: 'flex', gap: 12 }}>
+          <MacroBar label="Protein" current={Math.round(totalP)} goal={120} color={T.green} delay={500} />
+          <MacroBar label="Karbo" current={Math.round(totalC)} goal={250} color={T.yellow} delay={600} />
+          <MacroBar label="Lemak" current={Math.round(totalF)} goal={65} color={T.red} delay={700} />
+        </div>
+      </div>
+
+      {/* Meal Summary */}
+      <div style={{ padding: '20px 16px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: T.text }}>Ringkasan Makan</div>
+          <button onClick={() => onTab('log')} style={{ background: 'none', border: 'none', fontSize: 14, color: tweaks.accentColor, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>Lihat semua</button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {mealSummary.map((m, i) => (
+            <div key={m.name} onClick={() => onTab('log')} style={{
+              background: T.bgCard, borderRadius: 16, padding: '14px 16px',
+              display: 'flex', alignItems: 'center', gap: 14,
+              boxShadow: '0 1px 6px rgba(0,0,0,0.04)',
+              cursor: 'pointer', animation: `fadeSlideUp ${0.4 + i * 0.1}s ease`,
+              transition: 'transform 0.15s',
+            }}>
+              <div style={{ fontSize: 26 }}>{mealIcons[m.name]}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: T.text }}>{m.name}</div>
+                <div style={{ fontSize: 13, color: T.textSec }}>{m.count > 0 ? `${m.count} item` : 'Belum ada makanan'}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontFamily: 'DM Serif Display, serif', fontSize: 20, color: m.cal > 0 ? T.text : T.textMuted }}>{m.cal}</div>
+                <div style={{ fontSize: 11, color: T.textMuted }}>kkal</div>
+              </div>
+              <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
+                <path d="M1 1l6 6-6 6" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Water tracker widget */}
+      <div style={{ margin: '16px 16px 0', background: '#EBF3FA', borderRadius: 20, padding: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 20 }}>💧</span>
+            <span style={{ fontSize: 15, fontWeight: 600, color: '#1E4A6B' }}>Air Minum</span>
+          </div>
+          <span style={{ fontSize: 14, fontWeight: 600, color: '#2B6CB0' }}>5/8 gelas</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {[...Array(8)].map((_, i) => (
+            <div key={i} style={{ flex: 1, height: 28, borderRadius: 8, background: i < 5 ? '#2B6CB0' : 'rgba(43,108,176,0.18)', transition: 'background 0.3s' }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Log Screen
+function LogScreen({ logs, onAddFood, tweaks }) {
+  const [activeMeal, setActiveMeal] = useState('Sarapan');
+  const mealIcons = { 'Sarapan': '🌅', 'Makan Siang': '☀️', 'Makan Malam': '🌙', 'Camilan': '🍎' };
+
+  return (
+    <div style={{ height: '100%', background: T.bg, display: 'flex', flexDirection: 'column', paddingBottom: 90 }}>
+      <IOSStatusBar dark={false} time="9:41" />
+      <div style={{ padding: '12px 24px 0' }}>
+        <div style={{ fontSize: 13, color: T.textSec }}>Rabu, 7 Mei 2026</div>
+        <div style={{ fontSize: 24, fontWeight: 700, color: T.text, marginBottom: 16 }}>Food Log</div>
+        {/* Meal tabs */}
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+          {MEAL_TIMES.map(m => (
+            <button key={m} onClick={() => setActiveMeal(m)} style={{
+              background: activeMeal === m ? tweaks.accentColor : T.bgCard,
+              color: activeMeal === m ? '#fff' : T.textSec,
+              border: 'none', borderRadius: 20, padding: '8px 16px',
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              whiteSpace: 'nowrap', fontFamily: 'DM Sans, sans-serif',
+              boxShadow: activeMeal === m ? `0 4px 12px ${tweaks.accentColor}44` : 'none',
+              transition: 'all 0.2s',
+              flexShrink: 0,
+            }}>
+              {mealIcons[m]} {m}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 0' }}>
+        {/* Meal total */}
+        <div style={{ background: T.bgCard, borderRadius: 20, padding: '16px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 13, color: T.textSec }}>{activeMeal}</div>
+            <div style={{ fontFamily: 'DM Serif Display, serif', fontSize: 28, color: T.text }}>
+              {(logs[activeMeal] || []).reduce((s, f) => s + f.totalCal, 0)} kkal
+            </div>
+          </div>
+          <button onClick={() => onAddFood(activeMeal)} style={{
+            background: tweaks.accentColor, color: '#fff', border: 'none',
+            borderRadius: 12, padding: '10px 16px',
+            fontSize: 14, fontWeight: 600, cursor: 'pointer',
+            fontFamily: 'DM Sans, sans-serif', display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1v12M1 7h12" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            Tambah
+          </button>
+        </div>
+
+        {/* Food items */}
+        {(logs[activeMeal] || []).length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '48px 24px', color: T.textMuted }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>{mealIcons[activeMeal]}</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: T.textSec, marginBottom: 6 }}>Belum ada makanan</div>
+            <div style={{ fontSize: 14 }}>Tap "Tambah" untuk log makanan</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {(logs[activeMeal] || []).map((food, i) => (
+              <div key={i} style={{ background: T.bgCard, borderRadius: 16, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, animation: 'fadeSlideUp 0.3s ease' }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: T.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+                  {food.emoji}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: T.text }}>{food.name}</div>
+                  <div style={{ fontSize: 13, color: T.textSec }}>{food.qty} × {food.serving}</div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    {[['P', Math.round(food.p * food.qty), T.green], ['K', Math.round(food.c * food.qty), T.yellow], ['L', Math.round(food.f * food.qty), T.red]].map(([l, v, c]) => (
+                      <span key={l} style={{ fontSize: 10, fontWeight: 700, color: c, background: `${c}18`, borderRadius: 6, padding: '2px 6px' }}>{l}: {v}g</span>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontFamily: 'DM Serif Display, serif', fontSize: 20, color: T.text }}>{food.totalCal}</div>
+                  <div style={{ fontSize: 11, color: T.textMuted }}>kkal</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Add Food Screen
+function AddFoodScreen({ mealType, onAdd, onBack, tweaks }) {
+  const [query, setQuery] = useState('');
+  const [added, setAdded] = useState(null);
+
+  const filtered = query.length > 0
+    ? FOODS_DB.filter(f => f.name.toLowerCase().includes(query.toLowerCase()))
+    : FOODS_DB;
+
+  const handleAdd = (food) => {
+    onAdd({ ...food, qty: 1, totalCal: food.cal });
+    setAdded(food.id);
+    setTimeout(() => setAdded(null), 1500);
+  };
+
+  return (
+    <div style={{ height: '100%', background: T.bg, display: 'flex', flexDirection: 'column' }}>
+      <IOSStatusBar dark={false} time="9:41" />
+      <div style={{ padding: '12px 16px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <button onClick={onBack} style={{ background: T.bgCard, border: 'none', borderRadius: 12, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <svg width="10" height="16" viewBox="0 0 10 16" fill="none">
+              <path d="M8 2L2 8l6 6" stroke={T.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+          <div>
+            <div style={{ fontSize: 13, color: T.textSec }}>Tambah ke {mealType}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: T.text }}>Pilih Makanan</div>
+          </div>
+        </div>
+        {/* Search */}
+        <div style={{ position: 'relative', marginBottom: 16 }}>
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+            <circle cx="8" cy="8" r="6" stroke={T.textMuted} strokeWidth="1.8"/>
+            <path d="M13 13l3 3" stroke={T.textMuted} strokeWidth="1.8" strokeLinecap="round"/>
+          </svg>
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Cari makanan..."
+            style={{
+              width: '100%', background: T.bgCard,
+              border: `2px solid ${query ? tweaks.accentColor : 'transparent'}`,
+              borderRadius: 14, padding: '12px 16px 12px 42px',
+              fontSize: 15, color: T.text, outline: 'none',
+              fontFamily: 'DM Sans, sans-serif', transition: 'border-color 0.2s',
+            }}
+          />
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {filtered.map((food) => (
+            <div key={food.id} style={{
+              background: added === food.id ? T.greenLight : T.bgCard,
+              borderRadius: 16, padding: '14px 16px',
+              display: 'flex', alignItems: 'center', gap: 12,
+              border: `2px solid ${added === food.id ? tweaks.accentColor : 'transparent'}`,
+              transition: 'all 0.25s', animation: 'fadeIn 0.3s ease',
+            }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: T.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>
+                {food.emoji}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: T.text }}>{food.name}</div>
+                <div style={{ fontSize: 12, color: T.textSec }}>{food.serving} · {food.category}</div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                  {[['P', food.p, T.green], ['K', food.c, T.yellow], ['L', food.f, T.red]].map(([l, v, c]) => (
+                    <span key={l} style={{ fontSize: 10, fontWeight: 700, color: c, background: `${c}18`, borderRadius: 5, padding: '2px 5px' }}>{l}: {v}g</span>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+                <div style={{ fontFamily: 'DM Serif Display, serif', fontSize: 18, color: T.text }}>{food.cal} kkal</div>
+                <button onClick={() => handleAdd(food)} style={{
+                  width: 32, height: 32, borderRadius: 16,
+                  background: added === food.id ? tweaks.accentColor : T.surface,
+                  border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.2s',
+                  animation: added === food.id ? 'checkPop 0.4s ease' : 'none',
+                }}>
+                  {added === food.id
+                    ? <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7l4 4 6-7" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    : <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke={T.textSec} strokeWidth="2" strokeLinecap="round"/></svg>
+                  }
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Stats Screen
+function StatsScreen({ logs, tweaks }) {
+  const weekData = [
+    { day: 'Sen', cal: 1820, goal: 2000 },
+    { day: 'Sel', cal: 2100, goal: 2000 },
+    { day: 'Rab', cal: 1650, goal: 2000 },
+    { day: 'Kam', cal: 1940, goal: 2000 },
+    { day: 'Jum', cal: 2200, goal: 2000 },
+    { day: 'Sab', cal: 1750, goal: 2000 },
+    { day: 'Min', cal: 1420, goal: 2000 },
+  ];
+  const maxCal = 2400;
+  const [animate, setAnimate] = useState(false);
+  useEffect(() => { setTimeout(() => setAnimate(true), 200); }, []);
+
+  const totalCal = Object.values(logs).flat().reduce((s, f) => s + f.totalCal, 0);
+  const totalP = Math.round(Object.values(logs).flat().reduce((s, f) => s + f.p * f.qty, 0));
+  const totalC = Math.round(Object.values(logs).flat().reduce((s, f) => s + f.c * f.qty, 0));
+  const totalF = Math.round(Object.values(logs).flat().reduce((s, f) => s + f.f * f.qty, 0));
+  const macroTotal = totalP + totalC + totalF;
+
+  return (
+    <div style={{ height: '100%', background: T.bg, overflowY: 'auto', paddingBottom: 90 }}>
+      <IOSStatusBar dark={false} time="9:41" />
+      <div style={{ padding: '12px 24px 0', marginBottom: 20 }}>
+        <div style={{ fontSize: 13, color: T.textSec }}>Rabu, 7 Mei 2026</div>
+        <div style={{ fontSize: 24, fontWeight: 700, color: T.text }}>Statistik</div>
+      </div>
+
+      {/* Weekly bar chart */}
+      <div style={{ margin: '0 16px 16px', background: T.bgCard, borderRadius: 24, padding: '20px' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 4 }}>Kalori Mingguan</div>
+        <div style={{ fontSize: 13, color: T.textSec, marginBottom: 20 }}>7 hari terakhir</div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 120 }}>
+          {weekData.map((d, i) => {
+            const h = (d.cal / maxCal) * 100;
+            const isToday = i === 6;
+            return (
+              <div key={d.day} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, height: '100%', justifyContent: 'flex-end' }}>
+                <div style={{ fontSize: 10, color: d.cal > d.goal ? T.red : T.textMuted, fontWeight: d.cal > d.goal ? 700 : 400 }}>
+                  {d.cal > d.goal ? '↑' : ''}
+                </div>
+                <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                  <div style={{
+                    width: '70%', borderRadius: '4px 4px 2px 2px',
+                    background: isToday ? tweaks.accentColor : d.cal > d.goal ? T.red : T.surface,
+                    height: animate ? `${h}%` : 0,
+                    minHeight: animate ? 4 : 0,
+                    transition: `height 0.8s cubic-bezier(0.34,1.56,0.64,1) ${i * 0.06}s`,
+                    opacity: isToday ? 1 : 0.6,
+                  }} />
+                </div>
+                <div style={{ fontSize: 11, color: isToday ? tweaks.accentColor : T.textSec, fontWeight: isToday ? 700 : 400 }}>{d.day}</div>
+              </div>
+            );
+          })}
+        </div>
+        {/* Goal line label */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12 }}>
+          <div style={{ width: 20, height: 1.5, background: T.textMuted, borderStyle: 'dashed' }} />
+          <span style={{ fontSize: 11, color: T.textMuted }}>Target {tweaks.goalCalories.toLocaleString()} kkal</span>
+        </div>
+      </div>
+
+      {/* Macro donut */}
+      <div style={{ margin: '0 16px 16px', background: T.bgCard, borderRadius: 24, padding: '20px' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 16 }}>Distribusi Makro Hari Ini</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <svg width={120} height={120} style={{ transform: 'rotate(-90deg)' }}>
+              {(() => {
+                const r = 46, circ = 2 * Math.PI * r;
+                const segments = [
+                  { v: totalP / macroTotal, c: T.green },
+                  { v: totalC / macroTotal, c: T.yellow },
+                  { v: totalF / macroTotal, c: T.red },
+                ];
+                let offset = 0;
+                return segments.map((s, i) => {
+                  const len = s.v * circ;
+                  const el = (
+                    <circle key={i} cx={60} cy={60} r={r}
+                      fill="none" stroke={s.c} strokeWidth={16}
+                      strokeDasharray={`${animate ? len : 0} ${circ}`}
+                      strokeDashoffset={-offset}
+                      style={{ transition: `stroke-dasharray 1s ease ${0.3 + i * 0.15}s` }}
+                    />
+                  );
+                  offset += len;
+                  return el;
+                });
+              })()}
+              <circle cx={60} cy={60} r={36} fill="white" />
+            </svg>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+              <div style={{ fontFamily: 'DM Serif Display, serif', fontSize: 20, color: T.text }}>{totalCal}</div>
+              <div style={{ fontSize: 10, color: T.textSec }}>kkal</div>
+            </div>
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {[['Protein', totalP, macroTotal, T.green], ['Karbo', totalC, macroTotal, T.yellow], ['Lemak', totalF, macroTotal, T.red]].map(([label, val, total, color]) => (
+              <div key={label}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 3, background: color }} />
+                    <span style={{ fontSize: 13, color: T.textSec }}>{label}</span>
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{val}g</span>
+                </div>
+                <div style={{ height: 6, background: T.surface, borderRadius: 99, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', background: color, borderRadius: 99, width: animate ? `${(val / macroTotal) * 100}%` : 0, transition: 'width 1s ease 0.5s' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Streaks */}
+      <div style={{ margin: '0 16px', background: T.bgCard, borderRadius: 24, padding: '20px' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 16 }}>Pencapaian</div>
+        <div style={{ display: 'flex', gap: 12 }}>
+          {[
+            { icon: '🔥', value: '7', label: 'Hari berturut-turut', color: '#FF6B35' },
+            { icon: '🎯', value: '85%', label: 'Akurasi target', color: tweaks.accentColor },
+            { icon: '🥗', value: '42', label: 'Makanan berbeda', color: T.yellow },
+          ].map(s => (
+            <div key={s.label} style={{ flex: 1, background: T.bg, borderRadius: 16, padding: '14px 10px', textAlign: 'center' }}>
+              <div style={{ fontSize: 24, marginBottom: 4 }}>{s.icon}</div>
+              <div style={{ fontFamily: 'DM Serif Display, serif', fontSize: 22, color: s.color }}>{s.value}</div>
+              <div style={{ fontSize: 10, color: T.textSec, lineHeight: 1.3 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Profile Screen
+function ProfileScreen({ tweaks }) {
+  const stats = [
+    { label: 'Berat Saat Ini', value: '65 kg' },
+    { label: 'Target', value: '60 kg' },
+    { label: 'BMI', value: '22.3' },
+    { label: 'TDEE', value: '2,180 kkal' },
+  ];
+  const prefs = [
+    { label: 'Target Kalori Harian', value: `${tweaks.goalCalories.toLocaleString()} kkal` },
+    { label: 'Level Aktivitas', value: 'Sedang' },
+    { label: 'Alergi Makanan', value: 'Tidak ada' },
+    { label: 'Tujuan', value: 'Turun Berat Badan' },
+  ];
+
+  return (
+    <div style={{ height: '100%', background: T.bg, overflowY: 'auto', paddingBottom: 90 }}>
+      <IOSStatusBar dark={false} time="9:41" />
+      {/* Header */}
+      <div style={{ background: T.bgCard, padding: '16px 24px 24px', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ width: 64, height: 64, borderRadius: 32, background: `linear-gradient(135deg, ${tweaks.accentColor}, ${T.greenDark})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 28, fontFamily: 'DM Serif Display, serif', color: '#fff' }}>{tweaks.userName[0] || 'R'}</span>
+          </div>
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: T.text, fontFamily: 'DM Sans, sans-serif' }}>{tweaks.userName}</div>
+            <div style={{ fontSize: 14, color: T.textSec }}>Bergabung sejak Januari 2026</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 4, background: tweaks.accentColor }} />
+              <span style={{ fontSize: 12, color: tweaks.accentColor, fontWeight: 600 }}>7 hari streak</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Body Stats */}
+      <div style={{ margin: '0 16px 12px', background: T.bgCard, borderRadius: 20, padding: '16px', display: 'flex', gap: 0 }}>
+        {stats.map((s, i) => (
+          <div key={s.label} style={{ flex: 1, textAlign: 'center', borderRight: i < stats.length - 1 ? `1px solid ${T.border}` : 'none' }}>
+            <div style={{ fontFamily: 'DM Serif Display, serif', fontSize: 20, color: T.text }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: T.textSec, marginTop: 2 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Settings */}
+      <div style={{ margin: '0 16px 12px' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.textSec, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, padding: '0 4px' }}>Preferensi</div>
+        <div style={{ background: T.bgCard, borderRadius: 20, overflow: 'hidden' }}>
+          {prefs.map((p, i) => (
+            <div key={p.label} style={{ padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: i < prefs.length - 1 ? `1px solid ${T.border}` : 'none' }}>
+              <span style={{ fontSize: 15, color: T.text }}>{p.label}</span>
+              <span style={{ fontSize: 14, color: T.textSec, fontWeight: 500 }}>{p.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Logout */}
+      <div style={{ margin: '0 16px' }}>
+        <button style={{ width: '100%', background: T.redLight, color: T.red, border: 'none', borderRadius: 16, padding: '14px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+          Keluar dari Akun
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main App ─────────────────────────────────────────────────
+function App() {
+  const [screen, setScreen] = useState('onboarding');
+  const [tab, setTab] = useState('home');
+  const [logs, setLogs] = useState(INITIAL_LOGS);
+  const [addingMeal, setAddingMeal] = useState(null);
+  const [tweaks, setTweaks] = useState(TWEAK_DEFAULTS);
+
+  const handleTab = (t) => {
+    if (t === 'add') { setAddingMeal('Makan Malam'); setScreen('addFood'); return; }
+    setTab(t); setScreen('main');
+  };
+
+  const handleAddFood = (mealType) => { setAddingMeal(mealType); setScreen('addFood'); };
+
+  const handleFoodAdded = (food) => {
+    setLogs(prev => ({
+      ...prev,
+      [addingMeal]: [...(prev[addingMeal] || []), food],
+    }));
+  };
+
+  // Tweaks setup
+  useEffect(() => {
+    const listener = (e) => {
+      if (e.data?.type === '__activate_edit_mode') setTweakVisible(true);
+      if (e.data?.type === '__deactivate_edit_mode') setTweakVisible(false);
+    };
+    window.addEventListener('message', listener);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', listener);
+  }, []);
+
+  const [tweakVisible, setTweakVisible] = useState(false);
+
+  const renderContent = () => {
+    if (screen === 'onboarding') return <OnboardingScreen onDone={() => { setScreen('main'); setTab('home'); }} tweaks={tweaks} />;
+    if (screen === 'addFood') return <AddFoodScreen mealType={addingMeal} onAdd={handleFoodAdded} onBack={() => setScreen('main')} tweaks={tweaks} />;
+    if (screen === 'main') {
+      return (
+        <div style={{ height: '100%', position: 'relative' }}>
+          {tab === 'home' && <HomeScreen logs={logs} onTab={handleTab} tweaks={tweaks} />}
+          {tab === 'log' && <LogScreen logs={logs} onAddFood={handleAddFood} tweaks={tweaks} />}
+          {tab === 'stats' && <StatsScreen logs={logs} tweaks={tweaks} />}
+          {tab === 'profile' && <ProfileScreen tweaks={tweaks} />}
+          <TabBar active={tab} onTab={handleTab} />
+        </div>
+      );
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+      <IOSDevice width={390} height={844} dark={false}>
+        <div style={{ height: '100%', position: 'relative' }}>
+          {renderContent()}
+        </div>
+      </IOSDevice>
+
+      {tweakVisible && (
+        <TweaksPanel onClose={() => {
+          setTweakVisible(false);
+          window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*');
+        }}>
+          <TweakSection title="Profil">
+            <TweakText label="Nama Pengguna" value={tweaks.userName} onChange={v => {
+              const next = { ...tweaks, userName: v };
+              setTweaks(next);
+              window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { userName: v } }, '*');
+            }} />
+            <TweakNumber label="Target Kalori (kkal)" value={tweaks.goalCalories} min={1200} max={4000} step={50} onChange={v => {
+              const next = { ...tweaks, goalCalories: v };
+              setTweaks(next);
+              window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { goalCalories: v } }, '*');
+            }} />
+          </TweakSection>
+          <TweakSection title="Tampilan">
+            <TweakColor label="Warna Aksen" value={tweaks.accentColor} options={['#4A7C59', '#2B6CB0', '#C45C4A', '#8B5CF6', '#D4A843']} onChange={v => {
+              const next = { ...tweaks, accentColor: v };
+              setTweaks(next);
+              window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { accentColor: v } }, '*');
+            }} />
+          </TweakSection>
+          <TweakSection title="Navigasi">
+            <TweakButton label="→ Onboarding" onClick={() => setScreen('onboarding')} />
+            <TweakButton label="→ Dashboard" onClick={() => { setScreen('main'); setTab('home'); }} />
+            <TweakButton label="→ Food Log" onClick={() => { setScreen('main'); setTab('log'); }} />
+            <TweakButton label="→ Statistik" onClick={() => { setScreen('main'); setTab('stats'); }} />
+            <TweakButton label="→ Profil" onClick={() => { setScreen('main'); setTab('profile'); }} />
+            <TweakButton label="→ Tambah Makanan" onClick={() => { setAddingMeal('Sarapan'); setScreen('addFood'); }} />
+          </TweakSection>
+        </TweaksPanel>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
